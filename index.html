@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>夏日雪糕西瓜活动</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;font-family:system-ui}
+body{background:#fff8e8;padding:15px;max-width:750px;margin:0 auto}
+.card{background:#fff;border-radius:12px;padding:16px;margin-bottom:16px;box-shadow:0 2px 10px rgba(0,0,0,0.08)}
+h2{color:#ff5555;margin-bottom:12px;font-size:19px}
+h3{margin:10px 0 6px;font-size:16px}
+.rule{color:#333;line-height:1.7;font-size:14px;margin:8px 0}
+.tip-red{color:#f33;font-size:13px}
+input,button{width:100%;padding:12px;border-radius:8px;font-size:16px;margin:8px 0}
+input{border:1px solid #ddd;outline:none}
+.btn-ice{background:#ff6363;color:#fff;border:none}
+.btn-water{background:#36c770;color:#fff;border:none}
+.file-input{margin:10px 0}
+.rank-item{display:flex;justify-content:space-between;padding:9px;border-bottom:1px solid #eee}
+.word-wrap{display:flex;gap:12px;margin:12px 0}
+.word-box{width:65px;height:65px;border:2px solid #ccc;display:grid;place-items:center;font-size:26px;border-radius:10px}
+.modal{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);display:none;align-items:center;justify-content:center}
+.modal-inner{background:#fff;width:90%;max-width:350px;padding:20px;border-radius:12px}
+</style>
+</head>
+<body>
+<div class="modal" id="nameModal">
+  <div class="modal-inner">
+    <h3>设置你的昵称</h3>
+    <input id="nickInput" placeholder="输入自定义昵称">
+    <button class="btn-ice" onclick="saveNick()">确认进入活动</button>
+  </div>
+</div>
+
+<div id="mainWrap" style="display:none">
+  <div class="card">
+    <h2>活动一：雪糕积分排名</h2>
+    <div class="rule">
+      <b>雪糕奖励：</b><br>
+      1-3名：15支雪糕<br>
+      4-6名：10支雪糕<br>
+      7-10名：5支雪糕<br>
+      其余达标：3支雪糕<br>
+      <span class="tip-red">积分＜3无雪糕奖励</span>
+    </div>
+    <div class="rule">
+      <b>积分获取（提交截图人工审核，通过+1积分）：</b><br>
+      1.外宣成功1人 +1分<br>
+      2.朋友圈3天 / 转发5群 +1分<br>
+      3.点赞满10个额外+1分
+    </div>
+    <input type="file" class="file-input" id="iceImg" accept="image/*">
+    <button class="btn-ice" onclick="submitIceTask()">提交截图等待审核</button>
+    <p>当前积分：<span id="userScore">0</span></p >
+    <h3>积分排行榜</h3>
+    <div id="rankList"></div>
+  </div>
+
+  <div class="card">
+    <h2>活动二：清凉西瓜集字</h2>
+    <div class="rule">
+      无需积分，上传聊天截图提交审核，通过获得1次摇骰子<br>
+      骰子对应：1=清 2=凉 3=西 4=瓜 5/6=重摇一次
+    </div>
+    <input type="file" class="file-input" id="waterImg" accept="image/*">
+    <button class="btn-water" onclick="submitWaterTask()">提交截图兑换摇骰次数</button>
+    <p>剩余摇骰次数：<span id="shakeNum">0</span></p >
+    <button class="btn-water" id="shakeBtn" disabled onclick="rollDice()">摇骰子</button>
+    <p>本次点数：<span id="diceResult">-</span></p >
+    <h3>已收集文字</h3>
+    <div class="word-wrap">
+      <div class="word-box" id="wq">清</div>
+      <div class="word-box" id="wl">凉</div>
+      <div class="word-box" id="wx">西</div>
+      <div class="word-box" id="wg">瓜</div>
+    </div>
+  </div>
+</div>
+
+<div class="modal" id="msgModal">
+  <div class="modal-inner">
+    <p id="msgText"></p >
+    <button class="btn-ice" onclick="closeMsg()">确定</button>
+  </div>
+</div>
+
+<script>
+let userData = JSON.parse(localStorage.getItem("currUser")) || null;
+let allUserDB = JSON.parse(localStorage.getItem("userDB")) || [];
+let auditTaskDB = JSON.parse(localStorage.getItem("auditDB")) || [];
+
+window.onload = function(){
+  if(!userData){
+    document.getElementById("nameModal").style.display = "flex";
+  }else{
+    renderPage();
+  }
+}
+
+function showMsg(txt){
+  document.getElementById("msgText").innerText = txt;
+  document.getElementById("msgModal").style.display = "flex";
+}
+function closeMsg(){
+  document.getElementById("msgModal").style.display = "none";
+}
+
+function saveNick(){
+  let nick = document.getElementById("nickInput").value.trim();
+  if(!nick) return showMsg("昵称不能为空");
+  let target = allUserDB.find(u=>u.nick === nick);
+  if(target){
+    userData = target;
+  }else{
+    userData = {
+      nick:nick,
+      score:0,
+      shakeTimes:0,
+      words:[]
+    }
+    allUserDB.push(userData);
+    localStorage.setItem("userDB",JSON.stringify(allUserDB));
+  }
+  localStorage.setItem("currUser",JSON.stringify(userData));
+  document.getElementById("nameModal").style.display = "none";
+  document.getElementById("mainWrap").style.display = "block";
+  renderPage();
+}
+
+function submitIceTask(){
+  let file = document.getElementById("iceImg").files[0];
+  if(!file) return showMsg("请选择截图");
+  auditTaskDB.push({
+    id:Date.now(),
+    userNick:userData.nick,
+    type:"ice",
+    imgName:file.name,
+    status:"pending"
+  })
+  localStorage.setItem("auditDB",JSON.stringify(auditTaskDB));
+  showMsg("提交成功，请等待管理员人工审核");
+}
+
+function submitWaterTask(){
+  let file = document.getElementById("waterImg").files[0];
+  if(!file) return showMsg("请选择聊天截图");
+  auditTaskDB.push({
+    id:Date.now(),
+    userNick:userData.nick,
+    type:"water",
+    imgName:file.name,
+    status:"pending"
+  })
+  localStorage.setItem("auditDB",JSON.stringify(auditTaskDB));
+  showMsg("提交成功，等待审核发放摇骰次数");
+}
+
+function rollDice(){
+  if(userData.shakeTimes <= 0) return showMsg("暂无摇骰子次数");
+  let num = Math.floor(Math.random()*6)+1;
+  document.getElementById("diceResult").innerText = num;
+  userData.shakeTimes--;
+  let reRoll = false;
+  switch(num){
+    case 1: if(!userData.words.includes("清")) userData.words.push("清");break;
+    case 2: if(!userData.words.includes("凉")) userData.words.push("凉");break;
+    case 3: if(!userData.words.includes("西")) userData.words.push("西");break;
+    case 4: if(!userData.words.includes("瓜")) userData.words.push("瓜");break;
+    case 5:case 6: reRoll = true; userData.shakeTimes++;break;
+  }
+  syncUserDB();
+  renderPage();
+  if(reRoll) showMsg(`摇到${num}，赠送重摇一次！`);
+  else showMsg(`摇出数字${num}，已收集对应文字`);
+}
+
+function syncUserDB(){
+  let idx = allUserDB.findIndex(u=>u.nick === userData.nick);
+  if(idx !== -1) allUserDB[idx] = userData;
+  localStorage.setItem("userDB",JSON.stringify(allUserDB));
+  localStorage.setItem("currUser",JSON.stringify(userData));
+}
+
+function renderPage(){
+  document.getElementById("userScore").innerText = userData.score;
+  document.getElementById("shakeNum").innerText = userData.shakeTimes;
+  document.getElementById("shakeBtn").disabled = userData.shakeTimes <= 0;
+  document.getElementById("wq").style.opacity = userData.words.includes("清") ? 1 : 0.3;
+  document.getElementById("wl").style.opacity = userData.words.includes("凉") ? 1 : 0.3;
+  document.getElementById("wx").style.opacity = userData.words.includes("西") ? 1 : 0.3;
+  document.getElementById("wg").style.opacity = userData.words.includes("瓜") ? 1 : 0.3;
+  let rankWrap = document.getElementById("rankList");
+  rankWrap.innerHTML = "";
+  let sorted = [...allUserDB].sort((a,b)=>b.score - a.score);
+  sorted.forEach((u,i)=>{
+    let div = document.createElement("div");
+    div.className = "rank-item";
+    div.innerHTML = `<span>第${i+1}名 ${u.nick}</span><span>${u.score}积分</span>`;
+    rankWrap.appendChild(div);
+  })
+}
+</script>
+</body>
+</html>

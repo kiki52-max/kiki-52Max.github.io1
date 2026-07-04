@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>活动人工审核后台</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;font-family:system-ui}
+body{padding:15px;max-width:800px;margin:0 auto;background:#f4f4f4}
+h2{margin-bottom:15px;color:#222}
+.task-card{background:#fff;padding:14px;border-radius:10px;margin-bottom:12px}
+.task-line{margin:6px 0;font-size:14px}
+.btn-pass{background:#28b957;color:#fff;border:none;padding:8px 14px;border-radius:6px;margin-right:8px}
+.btn-reject{background:#e54444;color:#fff;border:none;padding:8px 14px}
+.no-task{color:#777;text-align:center;padding:40px 0}
+.user-db{margin-top:30px;background:#fff;padding:15px;border-radius:10px}
+.user-item{display:flex;justify-content:space-between;padding:8px;border-bottom:1px solid #eee}
+</style>
+</head>
+<body>
+<h2>待审核任务列表</h2>
+<div id="taskBox"></div>
+
+<div class="user-db">
+  <h3>全部玩家数据</h3>
+  <div id="userDBWrap"></div>
+</div>
+
+<script>
+function refreshAudit(){
+  let auditDB = JSON.parse(localStorage.getItem("auditDB")) || [];
+  let userDB = JSON.parse(localStorage.getItem("userDB")) || [];
+  let taskWrap = document.getElementById("taskBox");
+  taskWrap.innerHTML = "";
+  let pendingList = auditDB.filter(t=>t.status === "pending");
+  if(pendingList.length === 0){
+    taskWrap.innerHTML = "<div class='no-task'>暂无待审核截图</div>";
+  }else{
+    pendingList.forEach(task=>{
+      let div = document.createElement("div");
+      div.className = "task-card";
+      let typeText = task.type === "ice" ? "雪糕积分任务" : "西瓜摇骰子任务";
+      div.innerHTML = `
+        <div class="task-line">提交用户：${task.userNick}</div>
+        <div class="task-line">任务类型：${typeText}</div>
+        <div class="task-line">截图文件名：${task.imgName}</div>
+        <div class="task-line">任务ID：${task.id}</div>
+        <div style="margin-top:10px">
+          <button class="btn-pass" onclick="passTask(${task.id})">审核通过</button>
+          <button class="btn-reject" onclick="rejectTask(${task.id})">驳回</button>
+        </div>
+      `;
+      taskWrap.appendChild(div);
+    })
+  }
+  let userWrap = document.getElementById("userDBWrap");
+  userWrap.innerHTML = "";
+  let sortUser = [...userDB].sort((a,b)=>b.score - a.score);
+  sortUser.forEach(u=>{
+    let d = document.createElement("div");
+    d.className = "user-item";
+    d.innerHTML = `<span>昵称：${u.nick}</span><span>积分${u.score}｜摇骰次数${u.shakeTimes}｜收集字：${u.words.join("、")}</span>`;
+    userWrap.appendChild(d);
+  })
+}
+
+function passTask(taskId){
+  let auditDB = JSON.parse(localStorage.getItem("auditDB")) || [];
+  let userDB = JSON.parse(localStorage.getItem("userDB")) || [];
+  let task = auditDB.find(t=>t.id === taskId);
+  if(!task) return;
+  task.status = "pass";
+  let targetUser = userDB.find(u=>u.nick === task.userNick);
+  if(targetUser){
+    if(task.type === "ice"){
+      targetUser.score += 1;
+    }else{
+      targetUser.shakeTimes += 1;
+    }
+  }
+  localStorage.setItem("auditDB",JSON.stringify(auditDB));
+  localStorage.setItem("userDB",JSON.stringify(userDB));
+  refreshAudit();
+  alert("审核通过，奖励已发放给玩家");
+}
+
+function rejectTask(taskId){
+  let auditDB = JSON.parse(localStorage.getItem("auditDB")) || [];
+  let task = auditDB.find(t=>t.id === taskId);
+  if(!task) return;
+  task.status = "reject";
+  localStorage.setItem("auditDB",JSON.stringify(auditDB));
+  refreshAudit();
+  alert("已驳回该截图，玩家无奖励");
+}
+
+window.onload = refreshAudit;
+</script>
+</body>
+</html>
